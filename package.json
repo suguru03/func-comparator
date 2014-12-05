@@ -1,0 +1,26 @@
+{
+  "name": "func-comparator",
+  "version": "0.1.0",
+  "description": "func-comparator is intended functions speed comparison",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/mocha/bin/_mocha ./test"
+  },
+  "lisence": "MIT",
+  "directories": {
+    "test": "test/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:suguru03/func-comparator.git"
+  },
+  "homepage": "https://github.com/suguru03/func-comparator",
+  "dependencies": {},
+  "devDependencies": {
+    "espower-loader": "^0.10.0",
+    "intelli-espower-loader": "^0.5.0",
+    "lodash": "^2.4.1",
+    "mocha": "^2.0.1",
+    "power-assert": "^0.10.0"
+  }
+}
