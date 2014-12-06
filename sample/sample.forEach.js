@@ -3,8 +3,12 @@
 'use strict';
 var comparator = require('../');
 var _ = require('lodash');
-var time = 1000;
-var array = _.sample(_.times(time), time);
+
+// roop count
+var count = 1000;
+// sampling times
+var times = 10000;
+var array = _.sample(_.times(count), count);
 var funcs = {
   'forEach': function() {
     array.forEach(function(n) {
@@ -29,7 +33,7 @@ var funcs = {
 var res = comparator
 .set(funcs)
 .option({
-  times: 5000
+  times: times
 })
 .start()
 .result();

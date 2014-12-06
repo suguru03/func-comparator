@@ -1,11 +1,14 @@
 #!/usr/bin/env node --expose_gc
-
 'use strict';
 var comparator = require('../');
 var _ = require('lodash');
-var time = 1000;
-var object = _.chain(_.times(time))
-.sample(time)
+
+// roop count
+var count = 10000;
+// sampling times
+var times = 10000;
+var object = _.chain(_.times(count))
+.sample(count)
 .reduce(function(memo, value, index) {
   memo['_' + index] = value;
   return memo;
@@ -38,7 +41,7 @@ var funcs = {
 var res = comparator
 .set(funcs)
 .option({
-  times: 5000
+  times: times
 })
 .start()
 .result();

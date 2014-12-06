@@ -15,7 +15,10 @@
     "url": "git@github.com:suguru03/func-comparator.git"
   },
   "homepage": "https://github.com/suguru03/func-comparator",
-  "dependencies": {},
+  "dependencies": {
+    "express": "^4.10.4",
+    "jade": "^1.8.1"
+  },
   "devDependencies": {
     "espower-loader": "^0.10.0",
     "intelli-espower-loader": "^0.5.0",

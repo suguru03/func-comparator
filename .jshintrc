@@ -22,7 +22,7 @@
   "regexp": false,
   "undef": true,
   "unused": true,
-  "strict": true,
+  "strict": false,
   "trailing": true,
   "maxparams": false,
   "maxdepth": false,
@@ -60,7 +60,5 @@
 
   "nomen": false,
   "onevar": false,
-  "white": false,
-
-  "es3":true
+  "white": false
 }
