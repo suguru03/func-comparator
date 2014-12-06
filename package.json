@@ -1,6 +1,6 @@
 {
   "name": "func-comparator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "func-comparator is intended functions speed comparison",
   "main": "index.js",
   "scripts": {
