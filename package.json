@@ -17,7 +17,8 @@
   "homepage": "https://github.com/suguru03/func-comparator",
   "dependencies": {
     "express": "^4.10.4",
-    "jade": "^1.8.1"
+    "jade": "^1.8.1",
+    "underscore": "^1.7.0"
   },
   "devDependencies": {
     "espower-loader": "^0.10.0",

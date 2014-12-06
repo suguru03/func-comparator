@@ -38,9 +38,11 @@ Comparator.prototype.get = function(name) {
  * @param {Object} options
  * @param {Number} options.times - default 10
  * @param {Boolean} options.result - display result array [μs] | default false
- * @param {Boolean} options.average - calculate average [μs] | default true
- * @param {Boolean} options.variance - calcuate variance | default true
- * @param {Boolean} options.standard_deviation - calcuate standard deviation [μs] | default true
+ * @param {Boolean} options.min - display min [μs] | default true
+ * @param {Boolean} options.max - display max [μs] | default true
+ * @param {Boolean} options.average - display average [μs] | default true
+ * @param {Boolean} options.variance - display variance | default true
+ * @param {Boolean} options.standard_deviation - display standard deviation [μs] | default true
  * @param {Boolean} options.versus - vs other functions [%] | default true
  * @param {Boolean} options.vs - alias
  */
@@ -95,6 +97,8 @@ Comparator.prototype.result = function(callback) {
   var results = {};
   var opts = this._options;
   var res = opts.result === true;
+  var max = opts.max !== false;
+  var min = opts.min !== false;
   var ave = opts.average !== false;
   var varia = opts.variance !== false;
   var dev = opts.standard_deviation !== false;
@@ -114,9 +118,13 @@ Comparator.prototype.result = function(callback) {
         sum += n;
       });
       var average = sum / array.length;
-      if (ave || vs) {
+      if (min) {
         data.min = Math.min.apply(null, array);
+      }
+      if (max) {
         data.max = Math.max.apply(null, array);
+      }
+      if (ave || vs) {
         data.average = Math.floor(100 * average) / 100;
       }
       if (varia || dev) {

@@ -2,11 +2,12 @@
 'use strict';
 var comparator = require('../');
 var _ = require('lodash');
+var __ = require('underscore');
 
 // roop count
 var count = 1000;
 // sampling times
-var times = 10000;
+var times = 1000;
 var funcs = {
   'for': function() {
     for(var i = 0; i < count; i++) {
@@ -31,6 +32,14 @@ var funcs = {
   },
   'lodash-one': function() {
     _.times(count, Math.floor);
+  },
+  'underscore': function() {
+    __.times(count, function(n) {
+      Math.floor(n);
+    });
+  },
+  'underscore-one': function() {
+    __.times(count, Math.floor);
   }
 };
 

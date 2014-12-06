@@ -3,6 +3,7 @@
 'use strict';
 var comparator = require('../');
 var _ = require('lodash');
+var __ = require('underscore');
 
 // roop count
 var count = 1000;
@@ -27,6 +28,22 @@ var funcs = {
     for(var i = 0; i < l; i++) {
       Math.floor(array[i]);
     }
+  },
+  'lodash': function() {
+    _.forEach(array, function(n) {
+      Math.floor(n);
+    });
+  },
+  'lodash-one': function() {
+    _.forEach(array, Math.floor);
+  },
+  'underscore': function() {
+    __.forEach(array, function(n) {
+      Math.floor(n);
+    });
+  },
+  'underscore-one': function() {
+    __.forEach(array, Math.floor);
   }
 };
 
