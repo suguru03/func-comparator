@@ -107,30 +107,6 @@ Comparator.prototype.start = function() {
     var end = false;
     iterate();
 
-    function iterator(callback) {
-
-      var index = 0;
-      var sample = _shuffle(keys);
-      var iterate = function() {
-        var key = sample[index++];
-        if (!key) {
-          return callback();
-        }
-        timer.init().start();
-        funcs[key](function(err) {
-          var diff = timer.diff();
-          results[key][count] = diff;
-          if (err) {
-            return callback(err);
-          }
-          if (gc) {
-            gc();
-          }
-          iterate();
-        });
-      };
-    }
-
     function iterate() {
 
       if (!end) {
@@ -150,8 +126,34 @@ Comparator.prototype.start = function() {
 
     function done(err) {
       self._start = false;
+      self._results = results;
       self.emit('result', err);
     }
+
+    function iterator(callback) {
+
+      var index = 0;
+      var sample = _shuffle(keys);
+      (function _iterate() {
+        var key = sample[index++];
+        if (!key) {
+          return callback();
+        }
+        timer.init().start();
+        funcs[key](function(err) {
+          var diff = timer.diff();
+          results[key][count] = diff;
+          if (err) {
+            return callback(err);
+          }
+          if (gc) {
+            gc();
+          }
+          _iterate();
+        });
+      })();
+    }
+
   }
 };
 
@@ -232,13 +234,13 @@ Comparator.prototype.result = function(callback) {
       });
       var average = sum / array.length;
       if (min) {
-        data.min = Math.min.apply(null, array);
+        data.min = resolveDecimal(Math.min.apply(null, array));
       }
       if (max) {
-        data.max = Math.max.apply(null, array);
+        data.max = resolveDecimal(Math.max.apply(null, array));
       }
       if (ave || vs) {
-        data.average = Math.floor(100 * average) / 100;
+        data.average = resolveDecimal(average);
       }
       if (varia || dev) {
         var variance = (function() {
@@ -248,12 +250,12 @@ Comparator.prototype.result = function(callback) {
           });
           return variance / l;
         })();
-        variance = Math.floor(100 * variance) / 100;
+        variance = resolveDecimal(variance);
         if (varia) {
-          data.variance = Math.floor(100 * variance) / 100;
+          data.variance = variance;
         }
         if (dev) {
-          data.standard_deviation = Math.sqrt(variance, 2);
+          data.standard_deviation = resolveDecimal(Math.sqrt(variance, 2));
         }
       }
     }
@@ -267,7 +269,7 @@ Comparator.prototype.result = function(callback) {
         if (key === _key) {
           return;
         }
-        data.vs[_key] =  Math.floor(10000 * _data.average / data.average) / 100;
+        data.vs[_key] =  resolveDecimal(100 * _data.average / data.average);
       });
       if (!ave) {
         delete data.average;
@@ -401,6 +403,11 @@ function performanceTimer() {
       return this._diff * 1000;
     }
   };
+}
+
+function resolveDecimal(num) {
+
+  return Math.floor(100 * num) / 100;
 }
 
 var objectTypes = {
