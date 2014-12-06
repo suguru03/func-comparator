@@ -2,6 +2,7 @@
 function Comparator() {
 
   this._funcs = {};
+  this._events = {};
   this._options = {};
 }
 
@@ -45,6 +46,7 @@ Comparator.prototype.get = function(name) {
  * @param {Boolean} options.standard_deviation - display standard deviation [μs] | default true
  * @param {Boolean} options.versus - vs other functions [%] | default true
  * @param {Boolean} options.vs - alias
+ * @param {Boolean} options.async - use asynchronous
  */
 Comparator.prototype.option = function(options) {
 
@@ -57,14 +59,15 @@ Comparator.prototype.option = function(options) {
 
 Comparator.prototype.start = function() {
 
-  var funcs = this._funcs;
+  var self = this;
+  var funcs = self._funcs;
   var keys = Object.keys(funcs);
   var size = keys.length;
   if (!size) {
     throw new Error('function does not set yet');
   }
 
-  var times = this._options.times || 10;
+  var times = self._options.times || 10;
   var results = {};
   _forEach(keys, function(key) {
     results[key] = Array(times);
@@ -75,6 +78,13 @@ Comparator.prototype.start = function() {
   if (!timer) {
     throw new Error('timer can not use');
   }
+
+  var gc = objectTypes[typeof global] && global && global.gc;
+  if (self._options.async) {
+    self._start = true;
+    whilist();
+    return self;
+  }
   _times(times, function(i) {
     var sample = _shuffle(keys);
     _forEach(sample, function(key) {
@@ -83,12 +93,109 @@ Comparator.prototype.start = function() {
       func();
       var diff = timer.diff();
       results[key][i] = diff;
-      if (objectTypes[typeof global] && global && global.gc) {
-        global.gc();
+      if (gc) {
+        gc();
       }
     });
   });
-  this._results = results;
+  self._results = results;
+  return self;
+
+  function whilist() {
+
+    var count = 0;
+    var end = false;
+    iterate();
+
+    function iterator(callback) {
+
+      var index = 0;
+      var sample = _shuffle(keys);
+      var iterate = function() {
+        var key = sample[index++];
+        if (!key) {
+          return callback();
+        }
+        timer.init().start();
+        funcs[key](function(err) {
+          var diff = timer.diff();
+          results[key][count] = diff;
+          if (err) {
+            return callback(err);
+          }
+          if (gc) {
+            gc();
+          }
+          iterate();
+        });
+      };
+    }
+
+    function iterate() {
+
+      if (!end) {
+        iterator(function(err) {
+          if (err) {
+            return done(err);
+          }
+          if (count++ >= times) {
+            return done();
+          }
+          iterate();
+        });
+      } else {
+        done();
+      }
+    }
+
+    function done(err) {
+      self._start = false;
+      self.emit('result', err);
+    }
+  }
+};
+
+Comparator.prototype.on = function on(key, callback) {
+
+  if (typeof key == 'object') {
+    _forEach(key, _reverse(on));
+    return this;
+  }
+  this._events[key] = this._events[key] || [];
+  this._events[key].push(callback);
+  return this;
+};
+
+Comparator.prototype.once = function once(key, callback) {
+
+  if (typeof key == 'object') {
+    _forEach(key, _reverse(once));
+    return this;
+  }
+  callback._once = true;
+  this._events[key] = this._events[key] || [];
+  this._events[key].push(callback);
+  return this;
+};
+
+Comparator.prototype.emit = function emit(key, err, res) {
+
+  var events = this._events[key] || [];
+  if (!events.length) {
+    return this;
+  }
+  var deleteFlags = [];
+  _forEach(events, function(func, index) {
+    func(err, res);
+    if (func._once) {
+      deleteFlags.unshift(index);
+    }
+  });
+  if (deleteFlags.length) {
+    _forEach(deleteFlags, function(index) {
+      events.splice(index, 1);
+    });
+  }
   return this;
 };
 
@@ -96,6 +203,12 @@ Comparator.prototype.result = function(callback) {
 
   var results = {};
   var opts = this._options;
+  var async = opts.async;
+  if (async && this._start) {
+    this.once('result', this.result.bind(this, callback));
+    return 'calculating...';
+  }
+
   var res = opts.result === true;
   var max = opts.max !== false;
   var min = opts.min !== false;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node --expose_gc
+
 'use strict';
-var comparator = require('../');
+var comparator = require('../../');
 var _ = require('lodash');
 var __ = require('underscore');
 
@@ -8,38 +9,41 @@ var __ = require('underscore');
 var count = 1000;
 // sampling times
 var times = 10000;
+var array = _.sample(_.times(count), count);
 var funcs = {
-  'for': function() {
-    for(var i = 0; i < count; i++) {
-      Math.floor(i);
-    }
-  },
-  'for2': function() {
-    for(var i = 0; i++ < count;) {
-      Math.floor(i);
-    }
+  'forEach': function() {
+    array.forEach(function(n) {
+      Math.floor(n);
+    });
   },
   'while': function() {
     var i = -1;
-    while(++i < count) {
-      Math.floor(i);
+    var l = array.length;
+    while(++i < l) {
+      Math.floor(array[i]);
+    }
+  },
+  'for': function() {
+    var l = array.length;
+    for(var i = 0; i < l; i++) {
+      Math.floor(array[i]);
     }
   },
   'lodash': function() {
-    _.times(count, function(n) {
+    _.forEach(array, function(n) {
       Math.floor(n);
     });
   },
   'lodash-one': function() {
-    _.times(count, Math.floor);
+    _.forEach(array, Math.floor);
   },
   'underscore': function() {
-    __.times(count, function(n) {
+    __.forEach(array, function(n) {
       Math.floor(n);
     });
   },
   'underscore-one': function() {
-    __.times(count, Math.floor);
+    __.forEach(array, Math.floor);
   }
 };
 

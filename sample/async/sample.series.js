@@ -5,24 +5,25 @@ var async = require('async');
 var neo_async = require('neo-async');
 
 // roop count
-var count = 100;
+var count = 10;
 // sampling times
-var times = 1000;
+var times = 500;
 var array = _.sample(_.times(count), count);
-
-var c = 0;
-var iterator = function(n, callback) {
-  c++;
-  callback();
-};
+var total = 0;
+var tasks = _.map(array, function(n) {
+  return function(next) {
+    total += n;
+    next();
+  };
+});
 var funcs = {
   'async': function(callback) {
-    c = 0;
-    async.each(array, iterator, callback);
+    total = 0;
+    async.series(tasks, callback);
   },
   'neo-async': function(callback) {
-    c = 0;
-    neo_async.each(array, iterator, callback);
+    total = 0;
+    neo_async.series(tasks, callback);
   }
 };
 
