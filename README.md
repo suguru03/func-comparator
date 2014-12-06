@@ -7,83 +7,205 @@ Run functions on the random, it is possible to easily compare the average time, 
 ```bash
 npm install func-comparator
 ```
+## async samples
 
-## samples
+### async.waterfall
 
-### for
+```bash
+$ node --stack-size=65536 sample/async/sample.waterfall.js
+```
+
 ```js
-var comparator = require('../');
+var comparator = require('func-comparator');
+var _ = require('lodash');
+var async = require('async');
+var neo_async = require('neo-async');
 
-var time = 1000;
+// roop count
+var count = 10;
+// sampling times
+var times = 10000;
+var array = _.sample(_.times(count), count);
+var tasks = _.map(array, function(n, i) {
+  if (i === 0) {
+    return function(next) {
+      next(null, n);
+    };
+  }
+  return function(total, next) {
+    next(null, total + n);
+  };
+});
+
+var funcs = {
+  'async': function(callback) {
+    async.waterfall(tasks, callback);
+  },
+  'neo-async': function(callback) {
+    neo_async.waterfall(tasks, callback);
+  }
+};
+
+comparator
+.set(funcs)
+.option({
+  async: true,
+  times: times
+})
+.start()
+.result(function(err, res) {
+  console.log(res);
+});
+/*
+{ async:
+   { min: 46.34,
+     max: 7637.13,
+     average: 64.84,
+     variance: 29208.18,
+     standard_deviation: 170.9,
+     vs: { 'neo-async': 12.41 } },
+  'neo-async':
+   { min: 3.15,
+     max: 7147.13,
+     average: 8.05,
+     variance: 12283.61,
+     standard_deviation: 110.83,
+     vs: { async: 805.46 } } }
+ */
+```
+
+
+## sync samples
+### Node.js
+
+#### for
+
+```bash
+$ node samle/sync/sample.for.js
+```
+
+```js
+// roop count
+var count = 1000;
+// sampling times
+var times = 10000;
 var funcs = {
   'for': function() {
-    for(var i = 0; i < time; i++) {
+    for(var i = 0; i < count; i++) {
       Math.floor(i);
     }
   },
   'for2': function() {
-    for(var i = 0; i++ < time;) {
+    for(var i = 0; i++ < count;) {
       Math.floor(i);
     }
   },
   'while': function() {
     var i = -1;
-    while(++i < time) {
+    while(++i < count) {
       Math.floor(i);
     }
   }
 };
 
-var res = comparator.set(funcs)
+// get result
+var result = comparator
+.set(funcs)
 .option({
-  times: 5000
+  times: times
 })
 .start()
 .result();
 
-console.log(res);
+console.log(result);
 /*
 { for:
-   { average: 1277.2882,
-     variance: 3962201.3123407266,
-     standard_deviation: 1990.5278979056602,
-     vs: { for2: 120.68, while: 136.92 } },
+   { min: 1.11,
+     max: 78.15,
+     average: 1.23,
+     variance: 1.11,
+     standard_deviation: 1.05,
+     vs: { for2: 125.2, while: 128.45 } },
   for2:
-   { average: 1541.4366,
-     variance: 3791341.3851804687,
-     standard_deviation: 1947.1367145581917,
-     vs: { for: 82.86, while: 113.46 } },
+   { min: 1.4,
+     max: 113.01,
+     average: 1.54,
+     variance: 2.93,
+     standard_deviation: 1.71,
+     vs: { for: 79.87, while: 102.59 } },
   while:
-   { average: 1748.9676,
-     variance: 161116851.53854847,
-     standard_deviation: 12693.181300940614,
-     vs: { for: 73.03, for2: 88.13 } } }
+   { min: 1.39,
+     max: 439.58,
+     average: 1.58,
+     variance: 25.15,
+     standard_deviation: 5.01,
+     vs: { for: 77.84, for2: 97.46 } } }
  */
 ```
 
-### forEach
+#### forEach
+
+```bash
+$ node sample/sync/sample.forEach.js
+```
+
 ```js
-var comparator = require('../');
-var _ = require('lodash');
-var time = 1000;
-var array = _.sample(_.times(time), time);
+/*
+{ forEach:
+   { min: 33.27,
+     max: 990.1,
+     average: 37.2,
+     variance: 202.43,
+     standard_deviation: 14.22,
+     vs: { while: 6.61, for: 5.99 } },
+  while:
+   { min: 2.24,
+     max: 134.94,
+     average: 2.46,
+     variance: 2.62,
+     standard_deviation: 1.61,
+     vs: { forEach: 1512.19, for: 90.65 } },
+  for:
+   { min: 1.96,
+     max: 491.39,
+     average: 2.23,
+     variance: 30.4,
+     standard_deviation: 5.51,
+     vs: { forEach: 1668.16, while: 110.31 } } }
+ */
+```
+
+### Chrome
+
+```bash
+$ node server.js
+server started { port: 2000 }
+```
+
+* Access to http://localhost:2000  
+* Copy sample script to chrome console
+
+```js
+/* global comparator, _: lodash, __: underscore */
+// roop count
+var count = 100;
+// sampling times
+var times = 1000;
 var funcs = {
-  'forEach': function() {
-    array.forEach(function(n) {
-      Math.floor(n);
-    });
+  'for': function() {
+    for(var i = 0; i < count; i++) {
+      Math.floor(i);
+    }
+  },
+  'for2': function() {
+    for(var i = 0; i++ < count;) {
+      Math.floor(i);
+    }
   },
   'while': function() {
     var i = -1;
-    var l = array.length;
-    while(++i < l) {
-      Math.floor(array[i]);
-    }
-  },
-  'for': function() {
-    var l = array.length;
-    for(var i = 0; i < l; i++) {
-      Math.floor(array[i]);
+    while(++i < count) {
+      Math.floor(i);
     }
   }
 };
@@ -91,27 +213,47 @@ var funcs = {
 var res = comparator
 .set(funcs)
 .option({
-  times: 5000
+  times: times
 })
 .start()
 .result();
 
 console.log(res);
 /*
-{ forEach:
-   { average: 36673.405,
-     variance: 103011676.17817602,
-     standard_deviation: 10149.466792801286,
-     vs: { while: 6.8, for: 5.96 } },
-  while:
-   { average: 2496.8982,
-     variance: 6197164.420636774,
-     standard_deviation: 2489.410456440796,
-     vs: { forEach: 1468.75, for: 87.66 } },
-  for:
-   { average: 2189.0212,
-     variance: 3295823.0127505376,
-     standard_deviation: 1815.4401705235393,
-     vs: { forEach: 1675.33, while: 114.06 } } }
+{  
+   "for":{  
+      "min":23.999993572942913,
+      "max":188.99999849963933,
+      "average":28.66,
+      "variance":116.42,
+      "standard_deviation":10.789810007595129,
+      "vs":{  
+         "for2":100.27,
+         "while":99.02
+      }
+   },
+   "for2":{  
+      "min":23.999993572942913,
+      "max":197.00000120792538,
+      "average":28.74,
+      "variance":97.1,
+      "standard_deviation":9.85393322486001,
+      "vs":{  
+         "for":99.72,
+         "while":98.74
+      }
+   },
+   "while":{  
+      "min":23.00000051036477,
+      "max":151.99999324977398,
+      "average":28.38,
+      "variance":83.23,
+      "standard_deviation":9.123047736365299,
+      "vs":{  
+         "for":100.98,
+         "for2":101.26
+      }
+   }
+}
  */
 ```
