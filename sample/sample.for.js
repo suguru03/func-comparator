@@ -7,7 +7,7 @@ var __ = require('underscore');
 // roop count
 var count = 1000;
 // sampling times
-var times = 1000;
+var times = 10000;
 var funcs = {
   'for': function() {
     for(var i = 0; i < count; i++) {
