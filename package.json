@@ -15,14 +15,13 @@
     "url": "git@github.com:suguru03/func-comparator.git"
   },
   "homepage": "https://github.com/suguru03/func-comparator",
-  "dependencies": {
-    "express": "^4.10.4",
-    "jade": "^1.8.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "async": "^0.9.0",
     "espower-loader": "^0.10.0",
+    "express": "^4.10.4",
     "intelli-espower-loader": "^0.5.0",
+    "jade": "^1.8.1",
     "lodash": "^2.4.1",
     "mocha": "^2.0.1",
     "neo-async": "^0.2.8",
