@@ -1,3 +1,4 @@
+#!/usr/bin/env node --stack-size=65536
 'use strict';
 var comparator = require('../../');
 var _ = require('lodash');
@@ -9,7 +10,6 @@ var count = 100;
 // sampling times
 var times = 1000;
 var array = _.sample(_.times(count), count);
-
 var c = 0;
 var iterator = function(n, callback) {
   c++;

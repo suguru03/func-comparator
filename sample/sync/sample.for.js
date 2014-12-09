@@ -1,13 +1,14 @@
 #!/usr/bin/env node --expose_gc
 'use strict';
 var comparator = require('../../');
-var _ = require('lodash');
-var __ = require('underscore');
+var lodash = require('lodash');
+var lodash_node = require('lodash-node');
+var underscore = require('underscore');
 
 // roop count
 var count = 100;
 // sampling times
-var times = 1000;
+var times = 100000;
 var funcs = {
   'for': function() {
     for(var i = 0; i < count; i++) {
@@ -26,20 +27,28 @@ var funcs = {
     }
   },
   'lodash': function() {
-    _.times(count, function(i) {
+    lodash.times(count, function(i) {
       Math.floor(i);
     });
   },
   'lodash-one': function() {
-    _.times(count, Math.floor);
+    lodash.times(count, Math.floor);
+  },
+  'lodash-node': function() {
+    lodash_node.times(count, function(i) {
+      Math.floor(i);
+    });
+  },
+  'lodash-node-one': function() {
+    lodash_node.times(count, Math.floor);
   },
   'underscore': function() {
-    __.times(count, function(i) {
+    underscore.times(count, function(i) {
       Math.floor(i);
     });
   },
   'underscore-one': function() {
-    __.times(count, Math.floor);
+    underscore.times(count, Math.floor);
   }
 };
 

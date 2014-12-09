@@ -1,3 +1,4 @@
+#!/usr/bin/env node --stack-size=65536
 'use strict';
 var comparator = require('../../');
 var _ = require('lodash');
