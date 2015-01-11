@@ -173,7 +173,7 @@ Comparator.prototype.start = function() {
         if (count++ >= times) {
           return done();
         }
-        iterate();
+        setTimeout(iterate);
       });
     } else {
       done();
@@ -205,7 +205,7 @@ Comparator.prototype.start = function() {
         if (gc) {
           gc();
         }
-        _iterate();
+        setTimeout(_iterate);
       });
     })();
   }

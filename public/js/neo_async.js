@@ -3,13 +3,19 @@
   'use strict';
 
   var root = this;
-  var previos_async = root && root.async;
+  var previos_async = root && root.neo_async;
+
+  var objectTypes = {
+    'function': true,
+    'object': true
+  };
 
   var _nextTick;
   var _setImmediate;
   createImmediate();
 
   var async = {
+    VERSION: '0.4.3',
 
     // Collections
     each: each,
@@ -21,9 +27,12 @@
     map: map,
     mapSeries: mapSeries,
     mapLimit: mapLimit,
-    filter: createFilter(),
-    filterSeries: createFilter('series'),
-    filterLimit: createFilter('limit'),
+    filter: filter,
+    filterSeries: filterSeries,
+    filterLimit: filterLimit,
+    select: filter,
+    selectSeries: filterSeries,
+    selectLimit: filterLimit,
     reject: reject,
     rejectSeries: rejectSeries,
     rejectLimit: rejectLimit,
@@ -50,6 +59,7 @@
     concat: concat,
     concatSeries: concatSeries,
     concatLimit: concatLimit,
+    multiEach: multiEach,
 
     // Control Flow
     parallel: parallel,
@@ -84,51 +94,28 @@
     log: createLogger('log'),
     dir: createLogger('dir'),
     createLogger: createLogger,
-    noConflict: noConflict
+    noConflict: noConflict,
+    eventEmitter: eventEmitter,
+    EventEmitter: EventEmitter
   };
 
-  var objectTypes = {
-    'function': true,
-    'object': true
-  };
-
-  // Node.js
-  if (objectTypes[typeof module] && module && module.exports) {
-    module.exports = async;
-  }
   // AMD / RequireJS
-  else if (objectTypes[typeof define] && define && define.amd) {
+  if (objectTypes[typeof define] && define && define.amd) {
     define([], function() {
       return async;
     });
+  }
+  // Node.js
+  else if (objectTypes[typeof module] && module && module.exports) {
+    module.exports = async;
   } else {
     root.neo_async = async;
   }
 
   // base on lodash
-  function _keys(object) {
-
-    return Object.keys(object);
-  }
-
-  function _isArray(array) {
-
-    return Array.isArray(array);
-  }
-
-  function _isNumber(number) {
-
-    return typeof number == 'number';
-  }
-
-  function _isFunction(func) {
-
-    return typeof func == 'function';
-  }
-
   function _toArray(collection) {
 
-    var keys = _keys(collection);
+    var keys = Object.keys(collection);
     var index = -1;
     var length = keys.length;
     var result = Array(length);
@@ -192,29 +179,28 @@
     var length = array.length;
 
     while(++index < length) {
-      if (iterator(array[index], index, array) === false) {
-        break;
-      }
+      iterator(array[index], index, array);
     }
     return array;
-
   }
 
   function _objectEach(object, iterator, keys) {
 
-    keys = keys || _keys(object);
+    keys = keys || Object.keys(object);
 
     var index = -1;
     var length = keys.length;
 
     while(++index < length) {
       var key = keys[index];
-      if (iterator(object[key], key, object) === false) {
-        break;
-      }
+      iterator(object[key], key, object);
     }
     return object;
+  }
 
+  function _forEach(collection, iterator) {
+
+    return Array.isArray(collection) ? _arrayEach(collection, iterator) : _objectEach(collection, iterator);
   }
 
   function _times(n, iterator) {
@@ -254,7 +240,7 @@
 
   function _objectClone(item) {
 
-    var keys = _keys(item);
+    var keys = Object.keys(item);
     var length = keys.length;
     var index = -1;
     var result = {};
@@ -297,10 +283,6 @@
 
   function createImmediate() {
 
-    var objectTypes = {
-      'function': true,
-      'object': true
-    };
     if (!objectTypes[typeof process] || !process.nextTick) {
 
       if (objectTypes[typeof setImmediate]) {
@@ -317,7 +299,7 @@
     } else {
 
       _nextTick = process.nextTick;
-      if (_isFunction(setImmediate)) {
+      if (objectTypes[typeof setImmediate]) {
         _setImmediate = function(func) {
           setImmediate(func);
         };
@@ -332,41 +314,39 @@
 
     var called = false;
 
-    return function() {
+    return function(err, res) {
 
       if (called) {
 
-        if (arguments[0]) {
-          return func.apply(root, arguments);
+        if (err) {
+          return func(err, res);
         }
         throw new Error('Callback was already called.');
       }
 
       called = true;
-      func.apply(root, arguments);
+      func(err, res);
     };
   }
 
   function each(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-
-    var size = 0;
+    var size;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item) {
       _iterator(item, once(done));
     };
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback();
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback();
@@ -375,21 +355,19 @@
     }
 
     function done(err, bool) {
-
-      if (called) {
+      if (err) {
+        callback(err);
+        callback = function() {};
         return;
       }
-      if (err) {
-        called = true;
-        return callback(err);
-      }
       if (bool === false) {
-        called = true;
-        return callback();
+        callback();
+        callback = function() {};
+        return;
       }
       if (++completed >= size) {
-        called = true;
         callback();
+        callback = function() {};
       }
     }
 
@@ -398,28 +376,28 @@
   function eachSeries(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate, called;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
-        _iterator(collection[completed], once(done));
+        called = false;
+        _iterator(collection[completed], done);
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
-        _iterator(collection[keys[completed]], once(done));
+        called = false;
+        _iterator(collection[keys[completed]], done);
       };
     }
 
@@ -428,19 +406,16 @@
     function done(err, bool) {
 
       if (called) {
-        return;
+        throw new Error('Callback was already called.');
       }
-
+      called = true;
       if (err) {
-        called = true;
         return callback(err);
       }
-      if (bool === false) {
-        called = true;
+      if (++completed >= size) {
         return callback();
       }
-      if (++completed >= size) {
-        called = true;
+      if (bool === false) {
         return callback();
       }
       iterate();
@@ -451,38 +426,38 @@
   function eachLimit(collection, limit, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate;
     var completed = 0;
     var beforeCompleted = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          _iterator(collection[beforeCompleted + n], once(done));
+          _iterator(collection[index], once(done));
         });
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          _iterator(collection[keys[beforeCompleted + n]], once(done));
+          _iterator(collection[keys[index]], once(done));
         });
       };
     }
@@ -491,21 +466,20 @@
 
     function done(err, bool) {
 
-      if (called) {
+      if (err) {
+        callback(err);
+        callback = function() {};
         return;
       }
-
-      if (err) {
-        called = true;
-        return callback(err);
+      if (++completed >= size) {
+        callback();
+        callback = function() {};
+        return;
       }
       if (bool === false) {
-        called = true;
-        return callback();
-      }
-      if (++completed >= size) {
-        called = true;
-        return callback();
+        callback();
+        callback = function() {};
+        return;
       }
       if (completed >= beforeCompleted + limit) {
         beforeCompleted = completed;
@@ -518,25 +492,25 @@
   function map(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var result = [];
+    var size, result;
     var count = 0;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item) {
-      _iterator(item, once(createCallback(count++)));
+      _iterator(item, createCallback(count++));
     };
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
@@ -545,19 +519,25 @@
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
         if (called) {
+          throw new Error('Callback was already called.');
+        }
+        called = true;
+        result[index] = res;
+
+        if (err) {
+          callback(err, _arrayClone(result));
+          callback = function() {};
           return;
         }
-        result[index] = res;
-        if (err) {
-          called = true;
-          return callback(err);
-        }
         if (++completed >= size) {
-          called = true;
           callback(null, result);
+          callback = function() {};
+          return;
         }
       };
     }
@@ -566,29 +546,28 @@
   function mapSeries(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var result = [];
+    var size, result, iterate;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
-        _iterator(collection[completed], once(createCallback(completed)));
+        _iterator(collection[completed], createCallback(completed));
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
-        _iterator(collection[keys[completed]], once(createCallback(completed)));
+        _iterator(collection[keys[completed]], createCallback(completed));
       };
     }
 
@@ -596,20 +575,26 @@
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
         if (called) {
-          return;
+          throw new Error('Callback was already called.');
         }
+
+        called = true;
         result[index] = res;
 
         if (err) {
-          called = true;
-          return callback(err);
+          callback(err, _arrayClone(result));
+          callback = function() {};
+          return;
         }
         if (++completed >= size) {
-          called = true;
-          return callback(null, result);
+          callback(null, result);
+          callback = function() {};
+          return;
         }
 
         iterate();
@@ -621,41 +606,40 @@
   function mapLimit(collection, limit, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var result = [];
+    var size, result, iterate;
     var completed = 0;
     var beforeCompleted = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
-          _iterator(collection[index], once(createCallback(index)));
+          _iterator(collection[index], createCallback(index));
         });
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
+      result = Array(size);
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
-          _iterator(collection[keys[index]], once(createCallback(index)));
+          _iterator(collection[keys[index]], createCallback(index));
         });
       };
     }
@@ -664,20 +648,26 @@
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
         if (called) {
-          return;
+          throw new Error('Callback was already called.');
         }
+
+        called = true;
         result[index] = res;
 
         if (err) {
-          called = true;
-          return callback(err);
+          callback(err, _arrayClone(result));
+          callback = function() {};
+          return;
         }
         if (++completed >= size) {
-          called = true;
-          return callback(null, result);
+          callback(null, result);
+          callback = function() {};
+          return;
         }
         if (completed >= beforeCompleted + limit) {
           beforeCompleted = completed;
@@ -687,43 +677,37 @@
     }
   }
 
-  function createFilter(type) {
+  function filter(collection, iterator, callback, thisArg) {
 
-    switch(type) {
-    case 'series':
-      return filterSeries;
-    case 'limit':
-      return filterLimit;
-    default:
-      return filter;
+    pick(collection, iterator, done, thisArg);
+
+    function done(result) {
+
+      callback = callback || function() {};
+      callback(Array.isArray(collection) ? result : _toArray(result));
     }
+  }
 
-    function filter(collection, iterator, callback, thisArg) {
+  function filterSeries(collection, iterator, callback, thisArg) {
 
-      var done = createCallback(collection, callback);
-      pick(collection, iterator, done, thisArg);
+    pickSeries(collection, iterator, done, thisArg);
+
+    function done(result) {
+
+      callback = callback || function() {};
+      callback(Array.isArray(collection) ? result : _toArray(result));
     }
+  }
 
-    function filterSeries(collection, iterator, callback, thisArg) {
+  function filterLimit(collection, limit, iterator, callback, thisArg) {
 
-      var done = createCallback(collection, callback);
-      pickSeries(collection, iterator, done, thisArg);
+    pickLimit(collection, limit, iterator, done, thisArg);
+
+    function done(result) {
+
+      callback = callback || function() {};
+      callback(Array.isArray(collection) ? result : _toArray(result));
     }
-
-    function filterLimit(collection, limit, iterator, callback, thisArg) {
-
-      var done = createCallback(collection, callback);
-      pickLimit(collection, limit, iterator, done, thisArg);
-    }
-
-    function createCallback(collection, callback) {
-
-      return function(result) {
-
-        callback(_isArray(collection) ? result : _toArray(result));
-      };
-    }
-
   }
 
   function reject(collection, iterator, callback, thisArg) {
@@ -744,23 +728,22 @@
   function detect(collection, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size;
     var completed = 0;
-    var called = false;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item) {
-      _iterator(item, once(createCallback(item)));
+      _iterator(item, createCallback(item));
     };
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback();
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback();
@@ -770,23 +753,21 @@
 
     function getCreateCallback() {
 
-      return opposite ? rejectCallback : detectCallback;
+      return opposite ? everyCallback : detectCallback;
 
-      function rejectCallback(item) {
+      function everyCallback(item) {
 
         return function(bool) {
 
-          if (called) {
+          if (!bool) {
+            callback(item);
+            callback = function() {};
             return;
           }
-
-          if (!bool) {
-            called = true;
-            return callback(item);
-          }
           if (++completed >= size) {
-            called = true;
             callback();
+            callback = function() {};
+            return;
           }
         };
       }
@@ -795,17 +776,15 @@
 
         return function(bool) {
 
-          if (called) {
+          if (bool) {
+            callback(item);
+            callback = function() {};
             return;
           }
-
-          if (bool) {
-            called = true;
-            return callback(item);
-          }
           if (++completed >= size) {
-            called = true;
             callback();
+            callback = function() {};
+            return;
           }
         };
       }
@@ -817,31 +796,31 @@
   function detectSeries(collection, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate, called;
     var completed = 0;
-    var called = false;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
-        return callback([]);
+        return callback();
       }
       iterate = function() {
+        called = false;
         var item = collection[completed];
-        _iterator(item, once(createCallback(item)));
+        _iterator(item, createCallback(item));
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
-        return callback({});
+        return callback();
       }
       iterate = function() {
+        called = false;
         var item = collection[keys[completed]];
-        _iterator(item, once(createCallback(item)));
+        _iterator(item, createCallback(item));
       };
     }
 
@@ -849,21 +828,20 @@
 
     function getCreateCallback() {
 
-      return opposite ? rejectCallback : detectCallback;
+      return opposite ? everyCallback : detectCallback;
 
-      function rejectCallback(item) {
+      function everyCallback(item) {
 
         return function(bool) {
 
           if (called) {
-            return;
+            throw new Error('Callback was already called.');
           }
+          called = true;
           if (!bool) {
-            called = true;
             return callback(item);
           }
           if (++completed >= size) {
-            called = true;
             return callback();
           }
           iterate();
@@ -875,14 +853,13 @@
         return function(bool) {
 
           if (called) {
-            return;
+            throw new Error('Callback was already called.');
           }
+          called = true;
           if (bool) {
-            called = true;
             return callback(item);
           }
           if (++completed >= size) {
-            called = true;
             return callback();
           }
           iterate();
@@ -890,47 +867,44 @@
       }
     }
 
-
   }
 
   function detectLimit(collection, limit, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate;
     var completed = 0;
     var beforeCompleted = 0;
-    var called = false;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
           var item = collection[index];
           _iterator(item, once(createCallback(item)));
         });
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback();
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
           var item = collection[keys[index]];
           _iterator(item, once(createCallback(item)));
         });
@@ -941,22 +915,21 @@
 
     function getCreateCallback() {
 
-      return opposite ? rejectCallback : detectCallback;
+      return opposite ? everyCallback : detectCallback;
 
-      function rejectCallback(item) {
+      function everyCallback(item) {
 
         return function(bool) {
 
-          if (called) {
+          if (!bool) {
+            callback(item);
+            callback = function() {};
             return;
           }
-
-          if (!bool) {
-            called = true;
-            return callback(item);
-          }
           if (++completed >= size) {
-            return callback();
+            callback();
+            callback = function() {};
+            return;
           }
           if (completed >= beforeCompleted + limit) {
             beforeCompleted = completed;
@@ -969,16 +942,15 @@
 
         return function(bool) {
 
-          if (called) {
+          if (bool) {
+            callback(item);
+            callback = function() {};
             return;
           }
-
-          if (bool) {
-            called = true;
-            return callback(item);
-          }
           if (++completed >= size) {
-            return callback();
+            callback();
+            callback = function() {};
+            return;
           }
           if (completed >= beforeCompleted + limit) {
             beforeCompleted = completed;
@@ -988,20 +960,19 @@
       }
     }
 
-
   }
 
   function pick(collection, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
+    var size;
+    var isArray = Array.isArray(collection);
     var result = {};
     var completed = 0;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item, key) {
-      _iterator(item, once(createCallback(key, item)));
+      _iterator(item, createCallback(key, item));
     };
 
     if (isArray) {
@@ -1011,7 +982,7 @@
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback({});
@@ -1025,8 +996,14 @@
 
       function rejectCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+          called = true;
           if (!bool) {
             result[key + ''] = item;
           }
@@ -1038,8 +1015,14 @@
 
       function pickCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+          called = true;
           if (bool) {
             result[key + ''] = item;
           }
@@ -1055,13 +1038,12 @@
   function pickSeries(collection, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
+    var size, iterate;
+    var isArray = Array.isArray(collection);
     var result = {};
     var completed = 0;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
     if (isArray) {
       size = collection.length;
@@ -1070,10 +1052,10 @@
       }
       iterate = function() {
         var item = collection[completed];
-        _iterator(item, once(createCallback(completed, item)));
+        _iterator(item, createCallback(completed, item));
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback({});
@@ -1081,7 +1063,7 @@
       iterate = function() {
         var key = keys[completed];
         var item = collection[key];
-        _iterator(item, once(createCallback(key, item)));
+        _iterator(item, createCallback(key, item));
       };
     }
 
@@ -1093,8 +1075,14 @@
 
       function rejectCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+          called = true;
           if (!bool) {
             result[key + ''] = item;
           }
@@ -1107,8 +1095,14 @@
 
       function pickCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+          called = true;
           if (bool) {
             result[key + ''] = item;
           }
@@ -1124,14 +1118,13 @@
   function pickLimit(collection, limit, iterator, callback, thisArg, opposite) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
+    var size, iterate;
+    var isArray = Array.isArray(collection);
     var result = {};
     var completed = 0;
     var beforeCompleted = 0;
     var createCallback = getCreateCallback();
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
     if (isArray) {
       size = collection.length;
@@ -1140,29 +1133,29 @@
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
           var item = collection[index];
-          _iterator(item, once(createCallback(index, item)));
+          _iterator(item, createCallback(index, item));
         });
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback({});
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
           var key = keys[index];
           var item = collection[key];
-          _iterator(item, once(createCallback(key, item)));
+          _iterator(item, createCallback(key, item));
         });
       };
     }
@@ -1175,8 +1168,14 @@
 
       function rejectCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+          called = true;
           if (!bool) {
             result[key + ''] = item;
           }
@@ -1192,8 +1191,15 @@
 
       function pickCallback(key, item) {
 
+        var called = false;
+
         return function(bool) {
 
+          if (called) {
+            throw new Error('Callback was already called.');
+          }
+
+          called = true;
           if (bool) {
             result[key + ''] = item;
           }
@@ -1214,31 +1220,31 @@
   function reduce(collection, result, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate, called;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function(result) {
+        called = false;
         var item = collection[completed];
-        _iterator(result, item, once(done));
+        _iterator(result, item, done);
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function(result) {
+        called = false;
         var key = keys[completed];
         var item = collection[key];
-        _iterator(result, item, once(done));
+        _iterator(result, item, done);
       };
     }
 
@@ -1247,15 +1253,13 @@
     function done(err, result) {
 
       if (called) {
-        return;
+        throw new Error('Callback was already called.');
       }
-
+      called = true;
       if (err) {
-        called = true;
         return callback(err);
       }
       if (++completed >= size) {
-        called = true;
         return callback(null, result);
       }
       iterate(result);
@@ -1266,31 +1270,31 @@
   function reduceRight(collection, result, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size, iterate, called;
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function(result) {
+        called = false;
         var item = collection[size - completed - 1];
-        _iterator(result, item, once(done));
+        _iterator(result, item, done);
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function(result) {
+        called = false;
         var key = keys[size - completed - 1];
         var item = collection[key];
-        _iterator(result, item, once(done));
+        _iterator(result, item, done);
       };
     }
 
@@ -1299,15 +1303,13 @@
     function done(err, result) {
 
       if (called) {
-        return;
+        throw new Error('Callback was already called.');
       }
-
+      called = true;
       if (err) {
-        called = true;
         return callback(err);
       }
       if (++completed >= size) {
-        called = true;
         return callback(null, result);
       }
       iterate(result);
@@ -1315,14 +1317,13 @@
 
   }
 
-  function transform(collection, iterator, callback, thisArg) {
+  function transform(collection, iterator, callback, accumulator, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
-    var result = isArray ? [] : {};
+    var size;
+    var isArray = Array.isArray(collection);
+    var result = accumulator !== undefined ? accumulator : isArray ? [] : {};
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item, key) {
       _iterator(result, item, key, once(done));
@@ -1335,7 +1336,7 @@
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
@@ -1345,35 +1346,33 @@
 
     function done(err, bool) {
 
-      if (called) {
+      if (err) {
+        callback(err, isArray ? _arrayClone(result) : _objectClone(result));
+        callback = function() {};
         return;
       }
-      if (err) {
-        called = true;
-        return callback(err);
-      }
       if (bool === false) {
-        called = true;
-        return callback(null, isArray ? _arrayClone(result) : _objectClone(result));
+        callback(null, isArray ? _arrayClone(result) : _objectClone(result));
+        callback = function() {};
+        return;
       }
       if (++completed >= size) {
-        called = true;
         callback(null, result);
+        callback = function() {};
+        return;
       }
     }
 
   }
 
-  function transformSeries(collection, iterator, callback, thisArg) {
+  function transformSeries(collection, iterator, callback, accumulator, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
-    var result = isArray ? [] : {};
+    var size, iterate, called;
+    var isArray = Array.isArray(collection);
+    var result = accumulator !== undefined ? accumulator : isArray ? [] : {};
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
     if (isArray) {
       size = collection.length;
@@ -1381,38 +1380,36 @@
         return callback(null, result);
       }
       iterate = function() {
-        _iterator(result, collection[completed], completed, once(done));
+        called = false;
+        _iterator(result, collection[completed], completed, done);
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
+        called = false;
         var key = keys[completed];
-        _iterator(result, collection[key], key, once(done));
+        _iterator(result, collection[key], key, done);
       };
     }
-
     iterate();
 
     function done(err, bool) {
 
       if (called) {
-        return;
+        throw new Error('Callback was already called.');
       }
-
+      called = true;
       if (err) {
-        called = true;
-        return callback(err);
+        return callback(err, result);
       }
       if (bool === false) {
-        called = true;
         return callback(null, result);
       }
       if (++completed >= size) {
-        called = true;
         return callback(null, result);
       }
       iterate();
@@ -1420,17 +1417,15 @@
 
   }
 
-  function transformLimit(collection, limit, iterator, callback, thisArg) {
+  function transformLimit(collection, limit, iterator, callback, accumulator, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
-    var result = isArray ? [] : {};
+    var size, iterate;
+    var isArray = Array.isArray(collection);
+    var result = accumulator !== undefined ? accumulator : isArray ? [] : {};
     var completed = 0;
     var beforeCompleted = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
     if (isArray) {
       size = collection.length;
@@ -1439,29 +1434,27 @@
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
-          var item = collection[index];
-          _iterator(result, item, index, once(done));
+          _iterator(result, collection[index], index, once(done));
         });
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
       }
       iterate = function() {
         _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
             return;
           }
-          var index = beforeCompleted + n;
           var key = keys[index];
-          var item = collection[key];
-          _iterator(result, item, key, once(done));
+          _iterator(result, collection[key], key, once(done));
         });
       };
     }
@@ -1470,21 +1463,20 @@
 
     function done(err, bool) {
 
-      if (called) {
+      if (err) {
+        callback(err, isArray ? _arrayClone(result) : _objectClone(result));
+        callback = function() {};
         return;
       }
-
-      if (err) {
-        called = true;
-        return callback(err);
-      }
       if (bool === false) {
-        called = true;
-        return callback(null, isArray ? _arrayClone(result) : _objectClone(result));
+        callback(null, isArray ? _arrayClone(result) : _objectClone(result));
+        callback = function() {};
+        return;
       }
       if (++completed >= size) {
-        called = true;
-        return callback(null, result);
+        callback(null, result);
+        callback = function() {};
+        return;
       }
       if (completed >= beforeCompleted + limit) {
         beforeCompleted = completed;
@@ -1561,6 +1553,8 @@
     detect(collection, iterator, done, thisArg);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!!res);
     }
   }
@@ -1570,6 +1564,8 @@
     detectSeries(collection, iterator, done, thisArg);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!!res);
     }
   }
@@ -1579,6 +1575,8 @@
     detectLimit(collection, limit, iterator, done, thisArg);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!!res);
     }
   }
@@ -1588,6 +1586,8 @@
     detect(collection, iterator, done, thisArg, true);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!res);
     }
   }
@@ -1597,6 +1597,8 @@
     detectSeries(collection, iterator, done, thisArg, true);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!res);
     }
   }
@@ -1606,6 +1608,8 @@
     detectLimit(collection, limit, iterator, done, thisArg, true);
 
     function done(res) {
+
+      callback = callback || function() {};
       callback(!res);
     }
   }
@@ -1613,23 +1617,22 @@
   function concat(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
+    var size;
     var result = [];
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function(item) {
       _iterator(item, once(done));
     };
 
-    if (_isArray(collection)) {
+    if (Array.isArray(collection)) {
       size = collection.length;
       if (!size) {
         return callback(null, result);
       }
       _arrayEach(collection, iterate);
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
       if (!size) {
         return callback(null, result);
@@ -1639,20 +1642,18 @@
 
     function done(err, array) {
 
-      if (called) {
+      if (array) {
+        Array.prototype.push.apply(result, Array.isArray(array) ? array : [array]);
+      }
+      if (err) {
+        callback(err, _arrayClone(result));
+        callback = function() {};
         return;
       }
-
-      if (err) {
-        called = true;
-        return callback(err);
-      }
-      if (_isArray(array) && !!array.length) {
-        Array.prototype.push.apply(result, array);
-      }
       if (++completed >= size) {
-        called = true;
         callback(null, result);
+        callback = function() {};
+        return;
       }
     }
 
@@ -1661,50 +1662,170 @@
   function concatSeries(collection, iterator, callback, thisArg) {
 
     callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
+    var size, iterate, called;
     var result = [];
     var completed = 0;
-    var called = false;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
 
-    if (isArray) {
+    if (Array.isArray(collection)) {
       size = collection.length;
+      if (!size) {
+        return callback(null, result);
+      }
       iterate = function() {
-        _iterator(collection[completed], once(done));
+        called = false;
+        _iterator(collection[completed], done);
       };
     } else {
-      var keys = _keys(collection);
+      var keys = Object.keys(collection);
       size = keys.length;
+      if (!size) {
+        return callback(null, result);
+      }
       iterate = function() {
-        _iterator(collection[keys[completed]], once(done));
+        called = false;
+        _iterator(collection[keys[completed]], done);
       };
     }
+    iterate();
 
-    if (!size) {
-      return callback(null, result);
+    function done(err, array) {
+
+      if (called) {
+        throw new Error('Callback was already called.');
+      }
+      called = true;
+      if (array) {
+        Array.prototype.push.apply(result, Array.isArray(array) ? array : [array]);
+      }
+      if (err) {
+        return callback(err, result);
+      }
+      if (++completed >= size) {
+        return callback(null, result);
+      }
+      iterate();
+    }
+
+  }
+
+  function concatLimit(collection, limit, iterator, callback, thisArg) {
+
+    callback = callback || function() {};
+    var size, iterate;
+    var result = [];
+    var completed = 0;
+    var beforeCompleted = 0;
+    var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
+
+    if (Array.isArray(collection)) {
+      size = collection.length;
+      if (!size) {
+        return callback(null, result);
+      }
+      iterate = function() {
+        _times(limit, function(n) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
+            return;
+          }
+          _iterator(collection[index], once(done));
+        });
+      };
+    } else {
+      var keys = Object.keys(collection);
+      size = keys.length;
+      if (!size) {
+        return callback(null, result);
+      }
+      iterate = function() {
+        _times(limit, function(n) {
+          var index = beforeCompleted + n;
+          if (index >= size) {
+            return;
+          }
+          _iterator(collection[keys[index]], once(done));
+        });
+      };
     }
 
     iterate();
 
     function done(err, array) {
 
-      if (called) {
-        return;
+      if (array) {
+        Array.prototype.push.apply(result, Array.isArray(array) ? array : [array]);
       }
       if (err) {
-        called = true;
-        return callback(err);
-      }
-      if (_isArray(array) && !!array.length) {
-        Array.prototype.push.apply(result, array);
+        callback(err, result);
+        callback = function() {};
+        return;
       }
       if (++completed >= size) {
-        called = true;
-        return callback(null, result);
+        callback(null, result);
+        callback = function() {};
+        return;
       }
-      iterate();
+      if (completed >= beforeCompleted + limit) {
+        beforeCompleted = completed;
+        iterate();
+      }
+    }
+
+  }
+
+  function multiEach(collection, tasks, callback) {
+
+    callback = callback || function() {};
+    var arrayTasks = Array.isArray(tasks) ? tasks : _toArray(tasks);
+    if (!tasks || !arrayTasks.length) {
+      return callback(null, collection);
+    }
+
+    var taskCallCount = 0;
+    var replyCount = 0;
+    var end = {};
+    var endFlag = false;
+    var col = Array.isArray(collection) ? _arrayClone(collection) : _toArray(collection);
+    col.push(end);
+    createCallback(0)(null, col);
+
+    function done(err) {
+      if (err) {
+        callback(err);
+        callback = function() {};
+        return;
+      }
+      if (replyCount >= taskCallCount && endFlag) {
+        callback(null, collection);
+        callback = function() {};
+      }
+    }
+
+    function createCallback(taskIndex) {
+
+      var task = arrayTasks[taskIndex];
+
+      return function(err, col) {
+        if (err) {
+          return done(err);
+        }
+        var func = createCallback(taskIndex + 1);
+        if (task && typeof col == 'object') {
+          _forEach(col, function(value, index) {
+            if (value === end) {
+              endFlag = true;
+              return done();
+            }
+            taskCallCount++;
+            task(value, index, func);
+          });
+        }
+        if (taskIndex) {
+          replyCount++;
+          return done();
+        }
+      };
     }
 
   }
@@ -1725,96 +1846,27 @@
     };
   }
 
-  function concatLimit(collection, limit, iterator, callback, thisArg) {
-
-    callback = callback || function() {};
-    var size = 0;
-    var isArray = _isArray(collection);
-    var result = [];
-    var completed = 0;
-    var beforeCompleted = 0;
-    var called = false;
-    var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
-    var iterate;
-
-    if (isArray) {
-      size = collection.length;
-      if (!size) {
-        return callback(null, result);
-      }
-      iterate = function() {
-        _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
-            return;
-          }
-          var index = beforeCompleted + n;
-          _iterator(collection[index], once(done));
-        });
-      };
-    } else {
-      var keys = _keys(collection);
-      size = keys.length;
-      if (!size) {
-        return callback(null, result);
-      }
-      iterate = function() {
-        _times(limit, function(n) {
-          if (beforeCompleted + n >= size) {
-            return;
-          }
-          var index = beforeCompleted + n;
-          _iterator(collection[keys[index]], once(done));
-        });
-      };
-    }
-
-    iterate();
-
-    function done(err, array) {
-
-      if (called) {
-        return;
-      }
-
-      if (err) {
-        called = true;
-        return callback(err);
-      }
-      if (_isArray(array) && !!array.length) {
-        Array.prototype.push.apply(result, array);
-      }
-      if (++completed >= size) {
-        called = true;
-        return callback(null, result);
-      }
-      if (completed >= beforeCompleted + limit) {
-        beforeCompleted = completed;
-        iterate();
-      }
-    }
-
-  }
-
   function parallel(tasks, callback, thisArg) {
 
     var iterator = _createBaseIterator(thisArg);
-    transform(tasks, iterator, callback, thisArg);
+    transform(tasks, iterator, callback, undefined, thisArg);
   }
 
   function series(tasks, callback, thisArg) {
 
     var iterator = _createBaseIterator(thisArg);
-    transformSeries(tasks, iterator, callback, thisArg);
+    transformSeries(tasks, iterator, callback, undefined, thisArg);
   }
 
   function parallelLimit(tasks, limit, callback, thisArg) {
 
     var iterator = _createBaseIterator(thisArg);
-    transformLimit(tasks, limit, iterator, callback, thisArg);
+    transformLimit(tasks, limit, iterator, callback, undefined, thisArg);
   }
 
   function waterfall(tasks, callback, thisArg) {
 
+    callback = callback || function() {};
     var iterator = createIterator();
     reduce(tasks, {}, iterator, function(err, memo) {
       if (err) {
@@ -2030,7 +2082,7 @@
       }
 
       function done(err, res) {
-        res = _isArray(res) ? res : [res];
+        res = Array.isArray(res) ? res : [res];
         res.unshift(err);
         callback.apply(self, res);
       }
@@ -2077,17 +2129,17 @@
 
     function _insert(tasks, callback, unshift) {
 
-      var _tasks = _isArray(tasks) ? tasks : [tasks];
+      var _tasks = Array.isArray(tasks) ? tasks : [tasks];
 
       if (!tasks || !_tasks.length) {
-        if (q.idle() && _isFunction(q.drain)) {
+        if (q.idle() && typeof q.drain == 'function') {
           _setImmediate(q.drain);
         }
         return;
       }
 
       q.started = true;
-      callback = _isFunction(callback) ? callback : null;
+      callback = typeof callback == 'function' ? callback : null;
       _arrayEach(_tasks, function(task) {
 
         var item = {
@@ -2099,7 +2151,7 @@
         } else {
           q.tasks.push(item);
         }
-        if (_isFunction(q.saturated) && q.length() >= q.concurrency) {
+        if (typeof q.saturated == 'function' && q.length() >= q.concurrency) {
           q.saturated();
         }
         _setImmediate(q.process);
@@ -2138,17 +2190,17 @@
 
     function _insert(tasks, priority, callback) {
 
-      var _tasks = _isArray(tasks) ? tasks : [tasks];
+      var _tasks = Array.isArray(tasks) ? tasks : [tasks];
 
       if (!tasks || !_tasks.length) {
-        if (q.idle() && _isFunction(q.drain)) {
+        if (q.idle() && typeof q.drain == 'function') {
           _setImmediate(q.drain);
         }
         return;
       }
 
       q.started = true;
-      callback = _isFunction(callback) ? callback : null;
+      callback = typeof callback == 'function' ? callback : null;
       _arrayEach(_tasks, function(task) {
 
         var item = {
@@ -2162,7 +2214,7 @@
           return b.priority < a.priority;
         });
 
-        if (_isFunction(q.saturated) && q.length() >= q.concurrency) {
+        if (typeof q.saturated == 'function' && q.length() >= q.concurrency) {
           q.saturated();
         }
         _setImmediate(q.process);
@@ -2186,7 +2238,7 @@
         return;
       }
       var task = q.tasks.shift();
-      if (_isFunction(q.empty) && !q.length()) {
+      if (typeof q.empty == 'function' && !q.length()) {
         q.empty();
       }
 
@@ -2200,7 +2252,7 @@
         if (task.callback) {
           task.callback.apply(task, arguments);
         }
-        if (_isFunction(q.drain) && q.idle()) {
+        if (typeof q.drain == 'function' && q.idle()) {
           q.drain();
         }
 
@@ -2261,8 +2313,8 @@
 
     function push(data, callback) {
 
-      data = _isArray(data) ? data : [data];
-      callback = _isFunction(callback) ? callback : null;
+      data = Array.isArray(data) ? data : [data];
+      callback = typeof callback == 'function' ? callback : null;
 
       _arrayEach(data, function(task) {
 
@@ -2272,7 +2324,7 @@
         });
         c.drained = false;
 
-        if (_isFunction(c.saturated) && c.length() === c.payload) {
+        if (typeof c.saturated == 'function' && c.length() === c.payload) {
           c.saturated();
         }
       });
@@ -2286,18 +2338,17 @@
         return;
       }
       if (!c.length()) {
-        if (_isFunction(c.drain) && !c.drained) {
+        if (typeof c.drain == 'function' && !c.drained) {
           c.drain();
         }
         c.drained = true;
         return;
       }
 
-      var tasks = _isNumber(c.payload) ? c.tasks.splice(0, payload) : c.tasks;
+      var tasks = typeof c.payload == 'number' ? c.tasks.splice(0, payload) : c.tasks;
       var data = _pluck(tasks, 'data');
 
-      // TODO ?
-      if (_isFunction(c.empty)) {
+      if (!c.length() && typeof c.empty == 'function') {
         c.empty();
       }
 
@@ -2332,7 +2383,7 @@
   function auto(tasks, callback) {
 
     callback = callback ? once(callback) : function() {};
-    var keys = _keys(tasks);
+    var keys = Object.keys(tasks);
     var remainingTasks = keys.length;
     if (!remainingTasks) {
       return callback();
@@ -2349,7 +2400,7 @@
 
     _objectEach(tasks, function(task, key) {
 
-      task = _isArray(task) ? task : [task];
+      task = Array.isArray(task) ? task : [task];
       var size = task.length;
       var requires = task.slice(0, size - 1);
       var _task = task[size - 1];
@@ -2419,7 +2470,7 @@
   function retry(limit, task, callback) {
 
     var DEFAULT_TIMES = 5;
-    if (_isFunction(limit)) {
+    if (typeof limit == 'function') {
       callback = task;
       task = limit;
       limit = DEFAULT_TIMES;
@@ -2427,7 +2478,7 @@
 
     limit = parseInt(limit, 10) || DEFAULT_TIMES;
 
-    return _isFunction(callback) ? wrappedTask() : wrappedTask;
+    return typeof callback == 'function' ? wrappedTask() : wrappedTask;
 
     function wrappedTask(wrappedCallback, wrappedResults) {
 
@@ -2467,21 +2518,21 @@
   function iterator(tasks) {
 
     var size = 0;
-    var key = 0;
-    if (_isArray(tasks)) {
+    var keys = [];
+    if (Array.isArray(tasks)) {
       size = tasks.length;
     } else {
-      var keys = _keys(tasks);
+      keys = Object.keys(tasks);
       size = keys.length;
-      key = keys[key];
     }
-    return makeCallback(key);
+    return makeCallback(0);
 
     function makeCallback(index) {
 
       var fn = function() {
         if (size) {
-          tasks[index].apply(null, arguments);
+          var key = keys[index] || index;
+          tasks[key].apply(null, arguments);
         }
         return fn.next();
       };
@@ -2499,8 +2550,7 @@
     var args = _slice(arguments, 1);
 
     return function() {
-
-      func.apply(null, Array.prototype.concat.apply(args, _baseSlice(arguments)));
+      func.apply(this, Array.prototype.concat.apply(args, _baseSlice(arguments)));
     };
   }
 
@@ -2513,30 +2563,32 @@
       return callback(null, result);
     }
 
-    var called = false;
     var completed = 0;
-
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
 
     _times(n, function(num) {
-      _iterator(num, once(createCallback(num)));
+      _iterator(num, createCallback(num));
     });
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
         if (called) {
-          return;
+          throw new Error('Callback was already called.');
         }
+        called = true;
         result[index] = res;
         if (err) {
-          called = true;
-          return callback(err);
+          callback(err);
+          callback = function() {};
+          return;
         }
         if (++completed >= n) {
-          called = true;
           callback(null, result);
+          callback = function() {};
         }
       };
     }
@@ -2554,15 +2606,21 @@
     var completed = 0;
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
     var iterate = function() {
-      _iterator(completed, once(createCallback(completed)));
+      _iterator(completed, createCallback(completed));
     };
 
     iterate();
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
+        if (called) {
+          throw new Error('Callback was already called.');
+        }
+        called = true;
         result[index] = res;
 
         if (err) {
@@ -2585,39 +2643,42 @@
       return callback(null, result);
     }
 
-    var called = false;
     var completed = 0;
     var beforeCompleted = 0;
-
     var _iterator = thisArg ? iterator.bind(thisArg) : iterator;
 
     var iterate = function() {
       _times(limit, function(num) {
-        if (beforeCompleted + num >= n) {
+        var index = beforeCompleted + num;
+        if (index >= n) {
           return;
         }
-        var index = beforeCompleted + num;
-        _iterator(index, once(createCallback(index)));
+        _iterator(index, createCallback(index));
       });
     };
     iterate();
 
     function createCallback(index) {
 
+      var called = false;
+
       return function(err, res) {
 
         if (called) {
-          return;
+          throw new Error('Callback was already called.');
         }
+        called = true;
         result[index] = res;
 
         if (err) {
-          called = true;
-          return callback(err);
+          callback(err);
+          callback = function() {};
+          return;
         }
         if (++completed >= n) {
-          called = true;
-          return callback(null, result);
+          callback(null, result);
+          callback = function() {};
+          return;
         }
         if (completed >= beforeCompleted + limit) {
           beforeCompleted = completed;
@@ -2697,27 +2758,123 @@
 
     function done(err) {
 
-      var args = _slice(arguments, 1);
-      if (!console) {
-        return;
-      }
-      if (err) {
-        if (console.error) {
-          console.error(err);
+      if (objectTypes[typeof console]) {
+        if (err) {
+          if (console.error) {
+            console.error(err);
+          }
+          return;
         }
-        return;
-      }
 
-      if (console[name]) {
-        _arrayEach(args, console[name]);
+        if (console[name]) {
+          var args = _slice(arguments, 1);
+          _arrayEach(args, function(arg) {
+            console[name](arg);
+          });
+        }
       }
     }
   }
 
   function noConflict() {
 
-    root.async = previos_async;
+    root.neo_async = previos_async;
     return async;
+  }
+
+  function EventEmitter(emitter, limit) {
+
+    this._emitter = emitter || series;
+    this._limit = limit || 4;
+    this._events = {};
+  }
+
+  EventEmitter.prototype.on = function on(key, callback) {
+
+    var self = this;
+    if (typeof key == 'object') {
+      _objectEach(key, function(func, key) {
+        on.call(self, key, func);
+      });
+    } else {
+      self._events[key] = self._events[key] || [];
+      if (Array.isArray(callback)) {
+        Array.prototype.push.apply(self._events[key], callback);
+      } else {
+        self._events[key].push(callback);
+      }
+    }
+    return self;
+  };
+
+  EventEmitter.prototype.once = function once(key, callback) {
+
+    var self = this;
+    if (typeof key == 'object') {
+      _objectEach(key, function(func, key) {
+        once.call(self, key, func);
+      });
+    } else {
+      if (Array.isArray(callback)) {
+        _arrayEvery(callback, function(func) {
+          func._once = true;
+        });
+      } else {
+        callback._once = true;
+      }
+      self.on(key, callback);
+    }
+    return self;
+  };
+
+  EventEmitter.prototype.emit = function(key, callback, thisArg) {
+
+    callback = callback || function() {};
+    var events = this._events[key] || [];
+    if (!events.length) {
+      return callback();
+    }
+
+    var emitter = this._emitter;
+    emitter = thisArg ? emitter.bind(thisArg) : emitter;
+    if (emitter === parallelLimit) {
+      emitter(events, this._limit, done);
+    } else {
+      emitter(events, done);
+    }
+    return this;
+
+    function done(err, res) {
+
+      var l = events.length;
+      while(--l) {
+        var fn = events[l];
+        if (fn._once) {
+          events.splice(l, 1);
+        }
+      }
+      callback(err, res);
+    }
+  };
+
+  /**
+   * @param {Object} option
+   * @param {Boolean} option.series - default
+   * @param {Boolean} option.parallel
+   * @param {Boolean} option.parallelLimit
+   * @param {Number} option.limit - default 4
+   */
+  function eventEmitter(option) {
+    option = option || {};
+    var limit = option.limit;
+    if (option.parallel && !limit) {
+      return new EventEmitter(parallel);
+    }
+    if (option.parallel || option.parallelLimit) {
+      return new EventEmitter(parallelLimit, limit);
+    }
+
+    return new EventEmitter(option.emitter);
   }
 
 }.call(this));
