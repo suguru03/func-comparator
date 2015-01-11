@@ -12,7 +12,9 @@ npm install func-comparator
 ### async.waterfall
 
 ```bash
-$ node --stack-size=65536 sample/async/sample.waterfall.js
+$ node sample/async/sample.waterfall.js
+# using gc
+$ node --expose_gc sample/async/sample.waterfall.js
 ```
 
 ```js
@@ -22,9 +24,9 @@ var async = require('async');
 var neo_async = require('neo-async');
 
 // roop count
-var count = 10;
+var count = 100;
 // sampling times
-var times = 10000;
+var times = 1000;
 var array = _.sample(_.times(count), count);
 var tasks = _.map(array, function(n, i) {
   if (i === 0) {
@@ -58,20 +60,37 @@ comparator
 });
 /*
 { async:
-   { min: 46.34,
-     max: 7637.13,
-     average: 64.84,
-     variance: 29208.18,
-     standard_deviation: 170.9,
-     vs: { 'neo-async': 12.41 } },
+   { min: 478.96,
+     max: 8620.69,
+     average: 733.06,
+     variance: 318972.64,
+     standard_deviation: 564.77,
+     vs: { 'neo-async': 10.25 } },
   'neo-async':
-   { min: 3.15,
-     max: 7147.13,
-     average: 8.05,
-     variance: 12283.61,
-     standard_deviation: 110.83,
-     vs: { async: 805.46 } } }
+   { min: 21.63,
+     max: 8403.57,
+     average: 75.19,
+     variance: 204911.01,
+     standard_deviation: 452.67,
+     vs: { async: 974.94 } } }
  */
+// using gc
+/*
+{ async:
+   { min: 726.73,
+     max: 3904.74,
+     average: 1044.36,
+     variance: 58954.15,
+     standard_deviation: 242.8,
+     vs: { 'neo-async': 17.03 } },
+  'neo-async':
+   { min: 44.85,
+     max: 680.1,
+     average: 177.95,
+     variance: 18799.21,
+     standard_deviation: 137.11,
+     vs: { async: 586.88 } } }
+*/
 ```
 
 
@@ -182,7 +201,7 @@ $ node server.js
 server started { port: 2000 }
 ```
 
-* Access to http://localhost:2000  
+* Access to http://localhost:2000
 * Copy sample script to chrome console
 
 ```js
@@ -220,36 +239,36 @@ var res = comparator
 
 console.log(res);
 /*
-{  
-   "for":{  
+{
+   "for":{
       "min":23.999993572942913,
       "max":188.99999849963933,
       "average":28.66,
       "variance":116.42,
       "standard_deviation":10.789810007595129,
-      "vs":{  
+      "vs":{
          "for2":100.27,
          "while":99.02
       }
    },
-   "for2":{  
+   "for2":{
       "min":23.999993572942913,
       "max":197.00000120792538,
       "average":28.74,
       "variance":97.1,
       "standard_deviation":9.85393322486001,
-      "vs":{  
+      "vs":{
          "for":99.72,
          "while":98.74
       }
    },
-   "while":{  
+   "while":{
       "min":23.00000051036477,
       "max":151.99999324977398,
       "average":28.38,
       "variance":83.23,
       "standard_deviation":9.123047736365299,
-      "vs":{  
+      "vs":{
          "for":100.98,
          "for2":101.26
       }
