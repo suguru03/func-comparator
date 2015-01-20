@@ -5,11 +5,11 @@ var _ = require('lodash');
 var async = require('async');
 var neo_async = require('neo-async');
 
-var times = 1000;
+var times = 10;
 var create = function(count) {
 
   // sampling times
-  var array = _.sample(_.times(count), count);
+  var array = _.shuffle(_.times(count));
   var tasks = _.map(array, function(n, i) {
     if (i === 0) {
       return function(next) {
@@ -38,13 +38,14 @@ statistic
   times: times,
   count: {
     lower: 1,
-    upper: 50,
-    interval: 1
+    upper: 100,
+    interval: 10
   }
 })
 .start()
 .result(function(err, res) {
   console.log(res);
-});
+})
+.csv('waterfall');
 
 
