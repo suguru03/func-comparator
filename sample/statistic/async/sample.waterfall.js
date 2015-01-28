@@ -5,7 +5,7 @@ var _ = require('lodash');
 var async = require('async');
 var neo_async = require('neo-async');
 
-var times = 10;
+var times = 100;
 var create = function(count) {
 
   // sampling times
@@ -37,8 +37,8 @@ statistic
   async: true,
   times: times,
   count: {
-    lower: 1,
-    upper: 100,
+    lower: 10,
+    upper: 1000,
     interval: 10
   }
 })
@@ -46,6 +46,6 @@ statistic
 .result(function(err, res) {
   console.log(res);
 })
-.csv('waterfall');
+.csv('waterfall_iojs_' + _.now());
 
 
