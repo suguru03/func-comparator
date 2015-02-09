@@ -27,7 +27,7 @@ var neo_async = require('neo-async');
 var count = 100;
 // sampling times
 var times = 1000;
-var array = _.sample(_.times(count), count);
+var array = _.shuffle(_.times(count));
 var tasks = _.map(array, function(n, i) {
   if (i === 0) {
     return function(next) {
@@ -276,3 +276,96 @@ console.log(res);
 }
  */
 ```
+
+## statistic sample
+
+Specifications are as follows.
+
+* Execute tasks from lower to upper in the specified interval
+* Random execution order
+* Execute gc every time
+* Measure the average speed[μs] of n times
+
+### async.waterfall vs neo_async.waterfall
+
+* async v0.9.0
+* neo-async v0.4.9
+
+__demo.js__
+
+```js
+var statistic = require('func-comparator').statistic;
+var _ = require('lodash');
+var async = require('async');
+var neo_async = require('neo-async');
+
+var n = 100; // the number of trial times
+var create = function(count) {
+    // count is the number of tasks
+    var array = _.shuffle(_.times(count));
+    var tasks = _.map(array, function(n, i) {
+        if (i === 0) {
+            return function(next) {
+                next(null, n);
+            };
+        }
+        return function(total, next) {
+            next(null, total + n);
+        };
+    });
+    var funcs = {
+        'async': function(callback) {
+            async.waterfall(tasks, callback);
+        },
+        'neo-async': function(callback) {
+            neo_async.waterfall(tasks, callback);
+        }
+    };
+    return funcs;
+};
+
+statistic
+.create(create)
+.option({
+    async: true,
+    times: n,
+    count: {
+        lower: 10,
+        upper: 1000,
+        interval: 10
+    }
+})
+.start()
+.result(console.log)
+.csv('waterfall_' + _.now());
+```
+
+__execute__
+
+* lower: 10
+* upper: 1000
+* interval: 10
+* sampling number: 100
+
+Test environment are as follows.
+
+* node v0.10.35
+* iojs v1.0.2
+
+```bash
+$ node --expose_gc demo2.js
+$ iojs --expose_gc demo2.js
+```
+
+__result__
+
+Test result are in the following figure.
+* x-axis: number of tasks
+* y-axis: average times[μs]
+
+![node](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_node_waterfall.png)  
+
+figure 1: speed comparison of node  
+    ![iojs](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_iojs_waterfall.png)  
+
+figure 2: speed comparison of iojs
