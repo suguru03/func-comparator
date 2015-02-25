@@ -33,14 +33,12 @@ var create = function(count) {
 
 statistic
 .create(create)
-.option({
-  async: true,
-  times: times,
-  count: {
-    lower: 10,
-    upper: 1000,
-    interval: 10
-  }
+.times(times)
+.async()
+.count({
+  lower: 10,
+  upper: 1000,
+  interval: 10
 })
 .start()
 .result(function(err, res) {

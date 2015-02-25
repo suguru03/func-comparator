@@ -11,7 +11,7 @@ var _ = lodash;
 var count = 100;
 // sampling times
 var times = 10000;
-var array = _.sample(_.times(count), count);
+var array = _.shuffle(_.times(count));
 var funcs = {
   'forEach': function() {
     array.forEach(function(n) {
