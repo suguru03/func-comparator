@@ -9,7 +9,7 @@ var neo_async = require('neo-async');
 var count = 100;
 // sampling times
 var times = 1000;
-var array = _.sample(_.times(count), count);
+var array = _.shuffle(_.times(count));
 var c = 0;
 var iterator = function(n, callback) {
   callback(null, c++);
@@ -27,10 +27,8 @@ var funcs = {
 
 comparator
 .set(funcs)
-.option({
-  async: true,
-  times: times
-})
+.times(times)
+.async()
 .start()
 .result(function(err, res) {
   console.log(res);

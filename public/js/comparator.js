@@ -117,6 +117,27 @@ Comparator.prototype.option = function(options) {
   return this;
 };
 
+/**
+ * use asynchronous
+ * @param {Boolean} bool - option.async
+ */
+Comparator.prototype.async = function(bool) {
+
+  this._options.async = bool === false ? false : true;
+  return this;
+};
+
+/**
+ * @param {Number} times - option.times
+ */
+Comparator.prototype.times = function(times) {
+
+  if (times) {
+    this._options.times = times;
+  }
+  return this;
+};
+
 Comparator.prototype.start = function() {
 
   var self = this;

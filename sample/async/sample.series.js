@@ -41,10 +41,8 @@ if (typeof process != 'object' || !process.execArgv || process.execArgv.indexOf(
 
 comparator
 .set(funcs)
-.option({
-  async: true,
-  times: times
-})
+.times(times)
+.async()
 .start()
 .result(function(err, res) {
   console.log(res);

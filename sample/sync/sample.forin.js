@@ -67,9 +67,7 @@ var funcs = {
 
 var res = comparator
 .set(funcs)
-.option({
-  times: times
-})
+.times(times)
 .start()
 .result();
 
