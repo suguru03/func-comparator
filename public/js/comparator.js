@@ -340,74 +340,70 @@ Comparator.prototype.result = function result(callback) {
 function getTimer() {
 
   if (objectTypes[typeof process] && process && process.hrtime) {
-    return nodeTimer();
+    return new NodeTimer();
   }
   if (objectTypes[typeof performance] && performance && performance.now) {
-    return performanceTimer();
+    return new PerformanceTimer();
   }
 }
 Comparator.prototype.getTimer = getTimer;
 
-function nodeTimer() {
+// process.hrtime
+function NodeTimer() {
 
-  // process.hrtime
-  return {
-
-    _startTime: null,
-    _diff: null,
-
-    init: function() {
-
-      this._startTime = null;
-      this._diff = null;
-      return this;
-    },
-
-    start: function () {
-
-      this._startTime = process.hrtime();
-      return this;
-    },
-
-    diff: function() {
-
-      var diff = process.hrtime(this._startTime);
-      // ns
-      this._diff = diff[0] * 1e9 + diff[1];
-      return this._diff / 1000;
-    }
-  };
+  this._startTime = null;
+  this._diff = null;
 }
 
-function performanceTimer() {
+NodeTimer.prototype.init = function() {
 
-  // performance.now
-  return {
+  this._startTime = null;
+  this._diff = null;
+  return this;
+};
 
-    _startTime: null,
-    _diff: null,
+NodeTimer.prototype.start = function () {
 
-    init: function() {
+  this._startTime = process.hrtime();
+  return this;
+};
 
-      this._startTime = null;
-      this._diff = null;
-      return this;
-    },
+NodeTimer.prototype.diff = function() {
 
-    start: function () {
+  var diff = process.hrtime(this._startTime);
+  // ns
+  this._diff = diff[0] * 1e9 + diff[1];
+  // μs
+  return this._diff / 1000;
+};
 
-      this._startTime = performance.now();
-      return this;
-    },
+// performance.now
+function PerformanceTimer() {
 
-    diff: function() {
-
-      // ms
-      this._diff = performance.now() - this._startTime;
-      return this._diff * 1000;
-    }
-  };
+  this._startTime = null;
+  this._diff = null;
 }
+
+PerformanceTimer.prototype.init = function() {
+
+  this._startTime = null;
+  this._diff = null;
+  return this;
+};
+
+PerformanceTimer.prototype.start = function () {
+
+  this._startTime = performance.now();
+  return this;
+};
+
+PerformanceTimer.prototype.diff = function() {
+
+  // ms
+  this._diff = performance.now() - this._startTime;
+  // μs
+  return this._diff * 1000;
+};
 
 function resolveDecimal(num) {
 
