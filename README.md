@@ -50,10 +50,8 @@ var funcs = {
 
 comparator
 .set(funcs)
-.option({
-  async: true,
-  times: times
-})
+.times(times)
+.async()
 .start()
 .result(function(err, res) {
   console.log(res);
@@ -130,9 +128,7 @@ var funcs = {
 // get result
 var result = comparator
 .set(funcs)
-.option({
-  times: times
-})
+.times(times)
 .start()
 .result();
 
@@ -231,9 +227,7 @@ var funcs = {
 
 var res = comparator
 .set(funcs)
-.option({
-  times: times
-})
+.times(times)
 .start()
 .result();
 
@@ -326,15 +320,13 @@ var create = function(count) {
 
 statistic
 .create(create)
-.option({
-    async: true,
-    times: n,
-    count: {
-        lower: 10,
-        upper: 1000,
-        interval: 10
-    }
+.times(n)
+.count({
+  lower: 10,
+  upper: 1000,
+  interval: 10
 })
+.async()
 .start()
 .result(console.log)
 .csv('waterfall_' + _.now());
@@ -363,9 +355,10 @@ Test result are in the following figure.
 * x-axis: number of tasks
 * y-axis: average times[μs]
 
-![node](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_node_waterfall.png)  
+![node](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_node_waterfall.png)
 
-figure 1: speed comparison of node  
-    ![iojs](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_iojs_waterfall.png)  
+figure 1: speed comparison of node
+
+![iojs](https://raw.githubusercontent.com/wiki/suguru03/neo-async/images/func_comparator_iojs_waterfall.png)
 
 figure 2: speed comparison of iojs
