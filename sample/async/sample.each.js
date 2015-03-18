@@ -30,6 +30,7 @@ comparator
 .set(funcs)
 .times(times)
 .async()
+.concurrency(2)
 .start()
 .result(function(err, res) {
   console.log(res);
