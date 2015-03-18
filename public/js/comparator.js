@@ -203,8 +203,9 @@ Comparator.prototype.start = function() {
 
   function done(err) {
     self._started = false;
+    self._err = err;
     self._results = results;
-    self.emit('result', err);
+    self.emit('result');
   }
 
   function iterator(callback) {
@@ -218,8 +219,7 @@ Comparator.prototype.start = function() {
       }
       timer.init().start();
       funcs[key](function(err) {
-        var diff = timer.diff();
-        results[key][count] = diff;
+        results[key][count] = timer.diff();
         if (err) {
           return callback(err);
         }
@@ -353,7 +353,7 @@ Comparator.prototype.result = function result(callback) {
   }
 
   if (callback) {
-    callback(null, results);
+    callback(this._err, results);
   }
   return results;
 };
