@@ -6,7 +6,7 @@ var async = require('async');
 var neo_async = require('neo-async');
 
 // roop count
-var count = 10;
+var count = 1000;
 // sampling times
 var times = 1000;
 var array = _.shuffle(_.times(count));
@@ -17,10 +17,10 @@ var tasks = _.map(array, function(n) {
 });
 var funcs = {
   'async': function(callback) {
-    async.parallel(tasks, callback);
+    async.parallelLimit(tasks, 4, callback);
   },
   'neo-async': function(callback) {
-    neo_async.parallel(tasks, callback);
+    neo_async.parallelLimit(tasks, 4, callback);
   }
 };
 

@@ -17,10 +17,10 @@ var tasks = _.map(array, function(n) {
 });
 var funcs = {
   'async': function(callback) {
-    async.parallelLimit(tasks, 4, callback);
+    async.parallel(tasks, callback);
   },
   'neo-async': function(callback) {
-    neo_async.parallelLimit(tasks, 4, callback);
+    neo_async.parallel(tasks, callback);
   }
 };
 

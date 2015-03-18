@@ -6,10 +6,10 @@ var async = require('async');
 var neo_async = require('neo-async');
 
 // roop count
-var count = 100;
+var count = 1000;
 // sampling times
 var times = 1000;
-var array = _.sample(_.times(count));
+var array = _.shuffle(_.times(count));
 var tasks = _.map(array, function(n, i) {
   if (i === 0) {
     return function(next) {
@@ -31,8 +31,8 @@ var funcs = {
 
 comparator
 .set(funcs)
-.times(times)
 .async()
+.times(times)
 .start()
 .result(function(err, res) {
   console.log(res);

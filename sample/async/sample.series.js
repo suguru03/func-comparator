@@ -7,33 +7,28 @@ var async = require('async');
 var neo_async = require('neo-async');
 
 // roop count
-var count = 100;
+var count = 1000;
 // sampling times
 var times = 1000;
 var array = _.shuffle(_.times(count));
-var total = 0;
 var tasks = _.map(array, function(n) {
   return function(next) {
-    total += n;
-    next();
+    next(null, n);
   };
 });
 var funcs = {
   'async': function(callback) {
-    total = 0;
     async.series(tasks, callback);
   },
   'neo-async': function(callback) {
-    total = 0;
     neo_async.series(tasks, callback);
   },
-  'iojs': function(callback) {
-    total = 0;
-    util.forEach(tasks, function *(task) {
-      yield task;
-    });
-    callback();
-  }
+  //'iojs': function(callback) {
+  //  util.forEach(tasks, function *(task) {
+  //    yield task;
+  //  });
+  //  callback();
+  //}
 };
 if (typeof process != 'object' || !process.execArgv || process.execArgv.indexOf('--harmony') < 0) {
   delete funcs.iojs;

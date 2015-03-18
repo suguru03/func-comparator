@@ -366,6 +366,9 @@ function getTimer() {
   if (objectTypes[typeof performance] && performance && performance.now) {
     return new PerformanceTimer();
   }
+  if (objectTypes[typeof Date]) {
+    return new DateTimer();
+  }
 }
 Comparator.prototype.getTimer = getTimer;
 
@@ -422,6 +425,34 @@ PerformanceTimer.prototype.diff = function() {
 
   // ms
   this._diff = performance.now() - this._startTime;
+  // μs
+  return this._diff * 1000;
+};
+
+function DateTimer() {
+
+  this._startTime = null;
+  this._diff = null;
+}
+
+DateTimer.prototype.init = function() {
+
+  this._key = new Date().getTime();
+  this._startTime = null;
+  this._diff = null;
+  return this;
+};
+
+DateTimer.prototype.start = function () {
+
+  this._startTime = new Date().getTime();
+  return this;
+};
+
+DateTimer.prototype.diff = function() {
+
+  // ms
+  this._diff = new Date().getTime() - this._startTime;
   // μs
   return this._diff * 1000;
 };
