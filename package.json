@@ -1,6 +1,6 @@
 {
   "name": "func-comparator",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "func-comparator is intended functions speed comparison",
   "main": "index.js",
   "scripts": {
@@ -25,7 +25,7 @@
     "lodash": "^2.4.1",
     "lodash-node": "^2.4.1",
     "mocha": "^2.0.1",
-    "neo-async": "^0.2.8",
+    "neo-async": "^0.6.3",
     "power-assert": "^0.10.0",
     "underscore": "^1.7.0"
   }
