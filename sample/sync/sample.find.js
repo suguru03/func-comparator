@@ -4,9 +4,9 @@ var _ = require('lodash');
 var comparator = require('../../');
 
 // roop count
-var count = 100;
+var count = 10;
 // sampling times
-var times = 10000;
+var times = 100000;
 var array = _.times(count, function(n) {
   return {
     id: n,
@@ -16,9 +16,23 @@ var array = _.times(count, function(n) {
 var findList = _.shuffle(_.times(count));
 
 var funcs = {
-  'find': function() {
+  'find1': function() {
     _.forEach(findList, function(n) {
       _.find(array, 'id', n);
+    });
+  },
+  'find2': function() {
+    _.forEach(findList, function(n) {
+      _.find(array, {
+        id: n
+      });
+    });
+  },
+  'find3': function() {
+    _.forEach(findList, function(n) {
+      _.find(array, function(data) {
+        return data.id === n;
+      });
     });
   },
   'map': function() {
