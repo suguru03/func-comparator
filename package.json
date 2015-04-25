@@ -25,7 +25,7 @@
     "lodash": "^2.4.1",
     "lodash-node": "^2.4.1",
     "mocha": "^2.0.1",
-    "neo-async": "^0.6.3",
+    "neo-async": "^1.0.0",
     "power-assert": "^0.10.0",
     "underscore": "^1.7.0"
   }
