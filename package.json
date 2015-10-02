@@ -15,7 +15,9 @@
     "url": "git@github.com:suguru03/func-comparator.git"
   },
   "homepage": "https://github.com/suguru03/func-comparator",
-  "dependencies": {},
+  "dependencies": {
+    "neo-timer": "^0.2.0"
+  },
   "devDependencies": {
     "async": "^0.9.0",
     "espower-loader": "^0.10.0",
