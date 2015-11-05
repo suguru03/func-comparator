@@ -1,6 +1,6 @@
 {
   "name": "func-comparator",
-  "version": "0.6.2",
+  "version": "0.6.1",
   "description": "func-comparator is intended functions speed comparison",
   "main": "index.js",
   "scripts": {
@@ -15,9 +15,7 @@
     "url": "git@github.com:suguru03/func-comparator.git"
   },
   "homepage": "https://github.com/suguru03/func-comparator",
-  "dependencies": {
-    "neo-timer": "^0.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "async": "^0.9.0",
     "espower-loader": "^0.10.0",
