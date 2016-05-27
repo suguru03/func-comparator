@@ -3,6 +3,7 @@
 var comparator = require('../../');
 var _ = require('lodash');
 var async = require('async');
+var Promise = require('bluebird');
 var neo_async = require('neo-async');
 
 // roop count
@@ -15,6 +16,10 @@ var iterator = function(n, callback) {
   c++;
   callback();
 };
+var promiseIterator = function(n) {
+  c++;
+  return n;
+};
 var funcs = {
   'async': function(callback) {
     c = 0;
@@ -23,6 +28,10 @@ var funcs = {
   'neo-async': function(callback) {
     c = 0;
     neo_async.each(array, iterator, callback);
+  },
+  'bluebird': function() {
+    c = 0;
+    return Promise.map(array, promiseIterator);
   }
 };
 
